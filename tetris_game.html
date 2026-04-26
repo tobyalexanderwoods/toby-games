@@ -152,7 +152,7 @@
         const ROWS = 20;
         const COLORS = ['#ff0000', '#00ff00', '#0099ff', '#ffff00', '#ff6600', '#ff00ff', '#00ffff'];
         
-        let board = Array(ROWS).fill(null).map(() => Array(COLS).fill(0));
+        let board = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
         let score = 0;
         let lines = 0;
         let level = 1;
@@ -181,15 +181,17 @@
             const idx = Math.floor(Math.random() * TETRIMINOS.length);
             currentPiece = TETRIMINOS[idx].map(row => [...row]);
             currentColor = COLORS[idx];
-            currentX = Math.floor(COLS / 2) - 1;
+            currentX = Math.floor((COLS - currentPiece[0].length) / 2);
             currentY = 0;
             
-            if (collision(currentX, currentY, currentPiece)) {
+            if (canCollide(currentX, currentY, currentPiece)) {
                 endGame();
+                return false;
             }
+            return true;
         }
         
-        function collision(x, y, piece) {
+        function canCollide(x, y, piece) {
             for (let row = 0; row < piece.length; row++) {
                 for (let col = 0; col < piece[row].length; col++) {
                     if (!piece[row][col]) continue;
@@ -204,7 +206,7 @@
             return false;
         }
         
-        function placePiece() {
+        function lockPiece() {
             for (let row = 0; row < currentPiece.length; row++) {
                 for (let col = 0; col < currentPiece[row].length; col++) {
                     if (!currentPiece[row][col]) continue;
@@ -219,19 +221,25 @@
             }
             
             clearLines();
-            newPiece();
+            
+            if (!newPiece()) {
+                return false;
+            }
+            return true;
         }
         
         function clearLines() {
             let linesCleared = 0;
             
-            for (let row = ROWS - 1; row >= 0; row--) {
-                if (board[row].every(cell => cell)) {
-                    board.splice(row, 1);
-                    board.unshift(Array(COLS).fill(0));
-                    linesCleared++;
-                    row++;
+            outer: for (let row = ROWS - 1; row >= 0; row--) {
+                for (let col = 0; col < COLS; col++) {
+                    if (!board[row][col]) continue outer;
                 }
+                // Row is complete
+                board.splice(row, 1);
+                board.unshift(Array(COLS).fill(null));
+                linesCleared++;
+                row++; // Check this row again
             }
             
             if (linesCleared > 0) {
@@ -256,19 +264,21 @@
                 rotated.push(row);
             }
             
-            if (!collision(currentX, currentY, rotated)) {
+            if (!canCollide(currentX, currentY, rotated)) {
                 currentPiece = rotated;
             }
         }
         
         function update(now) {
-            if (!gameRunning || gamePaused) return;
+            if (!gameRunning || gamePaused || gameOver) return;
             
             if (now - lastDropTime > dropSpeed) {
-                if (!collision(currentX, currentY + 1, currentPiece)) {
+                if (!canCollide(currentX, currentY + 1, currentPiece)) {
                     currentY++;
                 } else {
-                    placePiece();
+                    if (!lockPiece()) {
+                        gameOver = true;
+                    }
                 }
                 lastDropTime = now;
             }
@@ -294,54 +304,58 @@
                 ctx.stroke();
             }
             
-            // Draw board
+            // Draw board blocks
             for (let row = 0; row < ROWS; row++) {
                 for (let col = 0; col < COLS; col++) {
                     if (board[row][col]) {
                         ctx.fillStyle = board[row][col];
-                        ctx.fillRect(col * BLOCK_SIZE, row * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1);
+                        ctx.fillRect(col * BLOCK_SIZE + 1, row * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
                     }
                 }
             }
             
-            // Draw current piece
+            // Draw current falling piece
             if (currentPiece) {
                 ctx.fillStyle = currentColor;
                 for (let row = 0; row < currentPiece.length; row++) {
                     for (let col = 0; col < currentPiece[row].length; col++) {
                         if (currentPiece[row][col]) {
-                            let x = (currentX + col) * BLOCK_SIZE;
-                            let y = (currentY + row) * BLOCK_SIZE;
-                            ctx.fillRect(x, y, BLOCK_SIZE - 1, BLOCK_SIZE - 1);
+                            let x = currentX + col;
+                            let y = currentY + row;
+                            if (y >= 0) {
+                                ctx.fillRect(x * BLOCK_SIZE + 1, y * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+                            }
                         }
                     }
                 }
             }
         }
         
-        const keys = {};
         document.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
-            
             if (e.key === ' ') {
-                gamePaused = !gamePaused;
-                updateStatus(gamePaused ? 'PAUSED' : 'Playing...');
+                if (gameRunning) {
+                    gamePaused = !gamePaused;
+                    updateStatus(gamePaused ? 'PAUSED' : 'Playing...');
+                }
+                e.preventDefault();
             }
-            if (e.key === 'ArrowLeft' && gameRunning && !gamePaused) {
-                if (!collision(currentX - 1, currentY, currentPiece)) {
+            if (!gameRunning || gamePaused) return;
+            
+            if (e.key === 'ArrowLeft') {
+                if (!canCollide(currentX - 1, currentY, currentPiece)) {
                     currentX--;
                 }
             }
-            if (e.key === 'ArrowRight' && gameRunning && !gamePaused) {
-                if (!collision(currentX + 1, currentY, currentPiece)) {
+            if (e.key === 'ArrowRight') {
+                if (!canCollide(currentX + 1, currentY, currentPiece)) {
                     currentX++;
                 }
             }
-            if (e.key === 'ArrowUp' && gameRunning && !gamePaused) {
+            if (e.key === 'ArrowUp') {
                 rotatePiece();
             }
-            if (e.key === 'ArrowDown' && gameRunning && !gamePaused) {
-                if (!collision(currentX, currentY + 1, currentPiece)) {
+            if (e.key === 'ArrowDown') {
+                if (!canCollide(currentX, currentY + 1, currentPiece)) {
                     currentY++;
                     score += 1;
                     document.getElementById('score').textContent = score;
@@ -357,12 +371,13 @@
             lines = 0;
             level = 1;
             dropSpeed = 1000;
-            board = Array(ROWS).fill(null).map(() => Array(COLS).fill(0));
+            board = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
             
             document.getElementById('score').textContent = '0';
             document.getElementById('lines').textContent = '0';
             document.getElementById('level').textContent = '1';
             
+            lastDropTime = Date.now();
             newPiece();
             updateStatus('Playing...');
             document.getElementById('playBtn').textContent = 'Restart';
@@ -385,7 +400,6 @@
         
         document.getElementById('playBtn').addEventListener('click', startGame);
         
-        lastDropTime = Date.now();
         requestAnimationFrame(gameLoop);
     </script>
 </body>
