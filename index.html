@@ -27,7 +27,7 @@
             padding: 50px;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 600px;
+            max-width: 800px;
         }
         
         h1 {
@@ -44,7 +44,7 @@
         
         .games-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 30px;
             margin-bottom: 30px;
         }
@@ -88,6 +88,12 @@
             border-top: 1px solid #ddd;
         }
         
+        @media (max-width: 900px) {
+            .games-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
         @media (max-width: 600px) {
             .games-grid {
                 grid-template-columns: 1fr;
@@ -119,6 +125,12 @@
                 <div class="game-icon">⛳</div>
                 <div class="game-title">Mini Golf</div>
                 <div class="game-desc">9 challenging holes. Beat the course!</div>
+            </a>
+            
+            <a href="pool_game.html" class="game-card">
+                <div class="game-icon">🎱</div>
+                <div class="game-title">Pool</div>
+                <div class="game-desc">Billiards classic. Sink all the balls!</div>
             </a>
         </div>
         
