@@ -55,12 +55,8 @@
             border: 3px solid #333;
             display: block;
             margin: 20px auto;
-            cursor: grab;
+            cursor: pointer;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        #gameCanvas:active {
-            cursor: grabbing;
         }
         
         .controls {
@@ -122,16 +118,16 @@
         <canvas id="gameCanvas" width="900" height="400"></canvas>
         
         <div class="controls">
-            <strong>Click and drag the paper ball backwards</strong><br>
-            <strong>Release to toss it into the bin!</strong><br>
+            <strong>Click on the canvas to shoot the paper ball</strong><br>
+            <strong>Try to toss it into the trash bin!</strong><br>
         </div>
         
         <button id="resetBtn">Reset Game</button>
         
-        <div class="status" id="gameStatus">Click and drag the paper to aim!</div>
+        <div class="status" id="gameStatus">Click the canvas to shoot!</div>
         
         <div class="instructions">
-            <p>Toss paper balls into the trash bin! Each successful shot is 1 point. Watch out for the wind!</p>
+            <p>Toss paper into the trash bin! Each successful shot is 1 point. Watch out for the wind!</p>
         </div>
     </div>
 
@@ -144,20 +140,20 @@
         let shots = 0;
         let made = 0;
         let ballMoving = false;
-        let aiming = false;
-        let mouseX = 0, mouseY = 0;
         let wind = 0;
         let windTimer = 0;
         
+        // Paper ball starting position
+        const startX = 100;
+        const startY = canvas.height - 100;
+        
         // Paper ball
         const ball = {
-            x: 100,
-            y: canvas.height - 100,
+            x: startX,
+            y: startY,
             radius: 8,
             vx: 0,
             vy: 0,
-            rotation: 0,
-            spinRate: 0,
             gravity: 0.4,
             friction: 0.98
         };
@@ -172,39 +168,27 @@
             openWidth: 50
         };
         
-        // Mouse tracking
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
-        });
-        
-        canvas.addEventListener('mousedown', (e) => {
+        // Canvas click
+        canvas.addEventListener('click', (e) => {
             if (ballMoving) return;
             
-            const dx = mouseX - ball.x;
-            const dy = mouseY - ball.y;
-            if (Math.sqrt(dx * dx + dy * dy) < ball.radius * 3) {
-                aiming = true;
-            }
-        });
-        
-        canvas.addEventListener('mouseup', (e) => {
-            if (!aiming) return;
-            aiming = false;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
             
-            // Calculate shot power
-            const dx = mouseX - ball.x;
-            const dy = mouseY - ball.y;
+            // Calculate angle and power based on click position
+            const dx = clickX - ball.x;
+            const dy = clickY - ball.y;
+            
+            // Random power (makes it more fun and chaotic)
+            const power = 1 + Math.random() * 0.5;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance > 10) {
-                const power = Math.min(distance / 60, 1.5);
+            if (distance > 20) {
                 const angle = Math.atan2(dy, dx);
                 
-                ball.vx = -Math.cos(angle) * power * 12;
-                ball.vy = -Math.sin(angle) * power * 12;
-                ball.spinRate = (Math.random() - 0.5) * 0.3;
+                ball.vx = Math.cos(angle) * power * 10;
+                ball.vy = Math.sin(angle) * power * 10;
                 
                 ballMoving = true;
                 shots++;
@@ -212,9 +196,8 @@
                 
                 // Randomize wind
                 wind = (Math.random() - 0.5) * 2;
-                windTimer = 0;
                 
-                updateStatus('Toss!');
+                updateStatus('Flying!');
             }
         });
         
@@ -230,9 +213,6 @@
             // Friction
             ball.vx *= ball.friction;
             ball.vy *= ball.friction;
-            
-            // Rotation
-            ball.rotation += ball.spinRate;
             
             // Update position
             ball.x += ball.vx;
@@ -268,12 +248,10 @@
                     document.getElementById('made').textContent = made;
                     
                     // Reset ball
-                    ball.x = 100;
-                    ball.y = canvas.height - 100;
+                    ball.x = startX;
+                    ball.y = startY;
                     ball.vx = 0;
                     ball.vy = 0;
-                    ball.rotation = 0;
-                    ball.spinRate = 0;
                     ballMoving = false;
                     wind = 0;
                     
@@ -286,7 +264,6 @@
             if (speed < 0.3 && ball.y > canvas.height - 50) {
                 ball.vx = 0;
                 ball.vy = 0;
-                ball.rotation = 0;
                 ballMoving = false;
                 wind = 0;
                 
@@ -338,56 +315,25 @@
             ctx.arc(bin.x + bin.width / 2, bin.y - 15, 20, Math.PI, 0);
             ctx.stroke();
             
-            // Draw paper ball
-            ctx.save();
-            ctx.translate(ball.x, ball.y);
-            ctx.rotate(ball.rotation);
-            
-            // Crumpled paper texture
+            // Draw paper ball (simple white sphere)
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
             ctx.fill();
             
-            // Crumple wrinkles
+            // Ball outline and fold line
             ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Simple fold line to show it's paper
+            ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 1;
-            for (let i = 0; i < 4; i++) {
-                const angle = (i / 4) * Math.PI * 2;
-                ctx.beginPath();
-                ctx.moveTo(Math.cos(angle) * ball.radius * 0.3, Math.sin(angle) * ball.radius * 0.3);
-                ctx.lineTo(Math.cos(angle) * ball.radius * 0.8, Math.sin(angle) * ball.radius * 0.8);
-                ctx.stroke();
-            }
-            
-            ctx.restore();
-            
-            // Aiming line
-            if (aiming) {
-                ctx.strokeStyle = 'rgba(100, 150, 200, 0.5)';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(ball.x, ball.y);
-                ctx.lineTo(mouseX, mouseY);
-                ctx.stroke();
-                
-                // Power indicator
-                const dx = mouseX - ball.x;
-                const dy = mouseY - ball.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const power = Math.min(dist / 60, 1.5);
-                
-                ctx.strokeStyle = 'rgba(100, 150, 200, 0.7)';
-                ctx.lineWidth = 3;
-                ctx.globalAlpha = power;
-                ctx.beginPath();
-                ctx.arc(ball.x, ball.y, 15, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                
-                ctx.setLineDash([]);
-            }
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius * 0.7, 0, Math.PI * 2);
+            ctx.stroke();
         }
         
         function updateStatus(text) {
@@ -404,20 +350,17 @@
             score = 0;
             shots = 0;
             made = 0;
-            ball.x = 100;
-            ball.y = canvas.height - 100;
+            ball.x = startX;
+            ball.y = startY;
             ball.vx = 0;
             ball.vy = 0;
-            ball.rotation = 0;
-            ball.spinRate = 0;
             ballMoving = false;
-            aiming = false;
             wind = 0;
             
             document.getElementById('score').textContent = '0';
             document.getElementById('shots').textContent = '0';
             document.getElementById('made').textContent = '0';
-            updateStatus('Click and drag the paper to aim!');
+            updateStatus('Click the canvas to shoot!');
         });
         
         gameLoop();
