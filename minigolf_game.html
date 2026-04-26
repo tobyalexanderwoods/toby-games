@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Golf</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #2d5016 0%, #1a3a0a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            padding: 20px;
+        }
+        
+        .container {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .score-info {
+            display: flex;
+            justify-content: space-around;
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .score-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+        
+        #gameCanvas {
+            background: #1a5a1a;
+            border: 3px solid #ffcc00;
+            display: block;
+            margin: 20px auto;
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.3);
+        }
+        
+        .controls {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 0.95em;
+            line-height: 2;
+        }
+        
+        .power-bar-container {
+            width: 300px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid #ffcc00;
+            border-radius: 5px;
+            margin: 15px auto;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #powerBar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #ffff00, #ff6600);
+            width: 0%;
+            transition: width 0.05s linear;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 1em;
+            background: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #000;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #ffdd00;
+            transform: scale(1.05);
+        }
+        
+        .status {
+            color: #ffcc00;
+            font-size: 1.2em;
+            margin-top: 15px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            min-height: 30px;
+        }
+        
+        .instructions {
+            color: #aaa;
+            font-size: 0.85em;
+            margin-top: 15px;
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⛳ MINI GOLF</h1>
+        
+        <div class="score-info">
+            <div class="score-item">
+                <div>Hole <span id="currentHole">1</span>/9</div>
+            </div>
+            <div class="score-item">
+                <div>Strokes: <span id="strokes">0</span></div>
+            </div>
+            <div class="score-item">
+                <div>Total: <span id="totalStrokes">0</span></div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+        
+        <div class="power-bar-container">
+            <div id="powerBar"></div>
+        </div>
+        
+        <div class="controls">
+            <strong>Click on the course to aim</strong><br>
+            <strong>Hold SPACE or click to set power, release to hit!</strong><br>
+        </div>
+        
+        <button id="nextHoleBtn" style="display:none;">Next Hole →</button>
+        <button id="resetBtn">Reset Game</button>
+        
+        <div class="status" id="gameStatus">Click to aim, hold SPACE to power up, release to hit!</div>
+        
+        <div class="instructions">
+            <p>Get the ball in the hole in as few strokes as possible! Avoid obstacles and use the walls to your advantage.</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let currentHole = 1;
+        let totalStrokes = 0;
+        let holeStrokes = 0;
+        let ballMoving = false;
+        let aiming = false;
+        let power = 0;
+        let powerDirection = 1;
+        let aimAngle = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        // Ball physics
+        const ball = {
+            x: 50,
+            y: canvas.height - 50,
+            radius: 6,
+            vx: 0,
+            vy: 0,
+            friction: 0.98,
+            minVelocity: 0.1
+        };
+        
+        // Hole
+        let hole = { x: canvas.width - 50, y: 50, radius: 12 };
+        
+        // Course layout for 9 holes
+        const holes = [
+            { // Hole 1 - Simple straight
+                startX: 50,
+                startY: canvas.height - 50,
+                holeX: canvas.width - 50,
+                holeY: 50,
+                obstacles: []
+            },
+            { // Hole 2 - Left wall obstacle
+                startX: 50,
+                startY: canvas.height - 50,
+                holeX: canvas.width - 50,
+                holeY: canvas.height - 50,
+                obstacles: [
+                    { type: 'wall', x: 100, y: 150, w: 20, h: 150 }
+                ]
+            },
+            { // Hole 3 - Sand trap
+                startX: 50,
+                startY: 50,
+                holeX: canvas.width - 50,
+                holeY: canvas.height - 50,
+                obstacles: [
+                    { type: 'sand', x: 250, y: 150, w: 100, h: 100 }
+                ]
+            },
+            { // Hole 4 - Two obstacles
+                startX: 50,
+                startY: canvas.height / 2,
+                holeX: canvas.width - 50,
+                holeY: canvas.height / 2,
+                obstacles: [
+                    { type: 'wall', x: 150, y: 80, w: 20, h: 150 },
+                    { type: 'wall', x: 300, y: 250, w: 20, h: 150 }
+                ]
+            },
+            { // Hole 5 - Winding path
+                startX: 50,
+                startY: canvas.height - 50,
+                holeX: canvas.width - 50,
+                holeY: 50,
+                obstacles: [
+                    { type: 'wall', x: 150, y: 200, w: 100, h: 20 },
+                    { type: 'wall', x: 350, y: 150, w: 100, h: 20 }
+                ]
+            },
+            { // Hole 6 - Diagonal challenge
+                startX: canvas.width - 50,
+                startY: canvas.height - 50,
+                holeX: 50,
+                holeY: 50,
+                obstacles: [
+                    { type: 'wall', x: 200, y: 100, w: 20, h: 200 }
+                ]
+            },
+            { // Hole 7 - Multiple sand traps
+                startX: 50,
+                startY: canvas.height / 2,
+                holeX: canvas.width - 50,
+                holeY: canvas.height / 2,
+                obstacles: [
+                    { type: 'sand', x: 150, y: 100, w: 80, h: 80 },
+                    { type: 'sand', x: 350, y: 250, w: 80, h: 80 }
+                ]
+            },
+            { // Hole 8 - Tight squeeze
+                startX: 50,
+                startY: 50,
+                holeX: canvas.width - 50,
+                holeY: canvas.height - 50,
+                obstacles: [
+                    { type: 'wall', x: 150, y: 0, w: 20, h: 200 },
+                    { type: 'wall', x: 350, y: 200, w: 20, h: 200 }
+                ]
+            },
+            { // Hole 9 - Final challenge
+                startX: canvas.width / 2,
+                startY: canvas.height - 50,
+                holeX: canvas.width / 2,
+                holeY: 50,
+                obstacles: [
+                    { type: 'wall', x: 200, y: 100, w: 20, h: 100 },
+                    { type: 'wall', x: 350, y: 200, w: 20, h: 100 },
+                    { type: 'sand', x: 250, y: 200, w: 80, h: 60 }
+                ]
+            }
+        ];
+        
+        function setupHole() {
+            const holeData = holes[currentHole - 1];
+            ball.x = holeData.startX;
+            ball.y = holeData.startY;
+            hole.x = holeData.holeX;
+            hole.y = holeData.holeY;
+            ball.vx = 0;
+            ball.vy = 0;
+            ballMoving = false;
+            holeStrokes = 0;
+            aiming = false;
+            power = 0;
+            document.getElementById('strokes').textContent = holeStrokes;
+            updateStatus('Click to aim');
+        }
+        
+        function updateStatus(text) {
+            document.getElementById('gameStatus').textContent = text;
+        }
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            if (ballMoving) return;
+            aiming = true;
+            power = 0;
+            updateStatus('Hold to build power... Release to hit!');
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (!aiming) return;
+            aiming = false;
+            
+            if (power > 10) {
+                // Calculate angle from ball to mouse
+                const dx = mouseX - ball.x;
+                const dy = mouseY - ball.y;
+                const angle = Math.atan2(dy, dx);
+                const maxPower = 15;
+                
+                ball.vx = Math.cos(angle) * (power / 100) * maxPower;
+                ball.vy = Math.sin(angle) * (power / 100) * maxPower;
+                
+                ballMoving = true;
+                holeStrokes++;
+                totalStrokes++;
+                document.getElementById('strokes').textContent = holeStrokes;
+                document.getElementById('totalStrokes').textContent = totalStrokes;
+                updateStatus('Ball rolling...');
+            }
+            power = 0;
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !ballMoving && !aiming) {
+                aiming = true;
+                power = 0;
+                updateStatus('Hold to build power... Release to hit!');
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' && aiming) {
+                aiming = false;
+                
+                if (power > 10) {
+                    const dx = mouseX - ball.x;
+                    const dy = mouseY - ball.y;
+                    const angle = Math.atan2(dy, dx);
+                    const maxPower = 15;
+                    
+                    ball.vx = Math.cos(angle) * (power / 100) * maxPower;
+                    ball.vy = Math.sin(angle) * (power / 100) * maxPower;
+                    
+                    ballMoving = true;
+                    holeStrokes++;
+                    totalStrokes++;
+                    document.getElementById('strokes').textContent = holeStrokes;
+                    document.getElementById('totalStrokes').textContent = totalStrokes;
+                    updateStatus('Ball rolling...');
+                }
+                power = 0;
+            }
+        });
+        
+        function updatePower() {
+            if (!aiming) return;
+            power += powerDirection * 2;
+            if (power >= 100 || power <= 0) {
+                powerDirection *= -1;
+            }
+            document.getElementById('powerBar').style.width = power + '%';
+        }
+        
+        function checkCollision(x, y, r) {
+            const holeData = holes[currentHole - 1];
+            
+            for (let obstacle of holeData.obstacles) {
+                if (obstacle.type === 'wall') {
+                    // Box collision
+                    if (x + r > obstacle.x &&
+                        x - r < obstacle.x + obstacle.w &&
+                        y + r > obstacle.y &&
+                        y - r < obstacle.y + obstacle.h) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        
+        function checkSand(x, y) {
+            const holeData = holes[currentHole - 1];
+            
+            for (let obstacle of holeData.obstacles) {
+                if (obstacle.type === 'sand') {
+                    if (x > obstacle.x &&
+                        x < obstacle.x + obstacle.w &&
+                        y > obstacle.y &&
+                        y < obstacle.y + obstacle.h) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        
+        function updateBall() {
+            if (!ballMoving) return;
+            
+            // Check sand (increase friction)
+            let friction = ball.friction;
+            if (checkSand(ball.x, ball.y)) {
+                friction = 0.90;
+            }
+            
+            ball.vx *= friction;
+            ball.vy *= friction;
+            
+            // Update position
+            let newX = ball.x + ball.vx;
+            let newY = ball.y + ball.vy;
+            
+            // Wall collisions
+            if (checkCollision(newX, newY, ball.radius)) {
+                // Bounce back
+                ball.vx *= -0.6;
+                ball.vy *= -0.6;
+                newX = ball.x + ball.vx;
+                newY = ball.y + ball.vy;
+            }
+            
+            // Canvas boundaries
+            if (newX - ball.radius < 0) {
+                newX = ball.radius;
+                ball.vx *= -0.7;
+            }
+            if (newX + ball.radius > canvas.width) {
+                newX = canvas.width - ball.radius;
+                ball.vx *= -0.7;
+            }
+            if (newY - ball.radius < 0) {
+                newY = ball.radius;
+                ball.vy *= -0.7;
+            }
+            if (newY + ball.radius > canvas.height) {
+                newY = canvas.height - ball.radius;
+                ball.vy *= -0.7;
+            }
+            
+            ball.x = newX;
+            ball.y = newY;
+            
+            // Stop if moving too slowly
+            const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            if (speed < ball.minVelocity) {
+                ballMoving = false;
+                ball.vx = 0;
+                ball.vy = 0;
+                updateStatus('Click to aim');
+            }
+            
+            // Check if in hole
+            const dx = ball.x - hole.x;
+            const dy = ball.y - hole.y;
+            if (Math.sqrt(dx * dx + dy * dy) < hole.radius + ball.radius) {
+                ballMoving = false;
+                ball.vx = 0;
+                ball.vy = 0;
+                
+                if (currentHole < 9) {
+                    updateStatus(`Hole ${currentHole} complete in ${holeStrokes} strokes! Next →`);
+                    document.getElementById('nextHoleBtn').style.display = 'inline-block';
+                } else {
+                    updateStatus(`🎉 Course complete! Total: ${totalStrokes} strokes`);
+                }
+            }
+        }
+        
+        function draw() {
+            // Draw green
+            ctx.fillStyle = '#1a5a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw obstacles
+            const holeData = holes[currentHole - 1];
+            for (let obstacle of holeData.obstacles) {
+                if (obstacle.type === 'wall') {
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+                } else if (obstacle.type === 'sand') {
+                    ctx.fillStyle = '#daa520';
+                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+                }
+            }
+            
+            // Draw hole
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Draw ball
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw aim line when aiming
+            if (aiming) {
+                const dx = mouseX - ball.x;
+                const dy = mouseY - ball.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(ball.x, ball.y);
+                    ctx.lineTo(mouseX, mouseY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+        
+        function gameLoop() {
+            updatePower();
+            updateBall();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        document.getElementById('nextHoleBtn').addEventListener('click', () => {
+            currentHole++;
+            document.getElementById('currentHole').textContent = currentHole;
+            document.getElementById('nextHoleBtn').style.display = 'none';
+            setupHole();
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            currentHole = 1;
+            totalStrokes = 0;
+            document.getElementById('currentHole').textContent = '1';
+            document.getElementById('totalStrokes').textContent = '0';
+            setupHole();
+        });
+        
+        // Start
+        setupHole();
+        gameLoop();
+    </script>
+</body>
+</html>
