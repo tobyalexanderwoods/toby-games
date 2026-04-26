@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platformer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #87CEEB 0%, #E0F6FF 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 2.5em;
+        }
+        
+        .level-info {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        #gameCanvas {
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 100%);
+            border: 3px solid #333;
+            display: block;
+            margin: 20px auto;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .controls {
+            color: #333;
+            margin-top: 20px;
+            font-size: 0.95em;
+            line-height: 1.8;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 1em;
+            background: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #fff;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        
+        .status {
+            color: #333;
+            font-size: 1.2em;
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 30px;
+        }
+        
+        .instructions {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 PLATFORMER</h1>
+        
+        <div class="level-info">
+            Level: <span id="level">1</span>/3
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        
+        <div class="controls">
+            <strong>A/D or Arrow Keys to move</strong><br>
+            <strong>SPACE to jump</strong><br>
+            <strong>Reach the flag to complete the level!</strong><br>
+        </div>
+        
+        <button id="playBtn">Play</button>
+        
+        <div class="status" id="gameStatus">Press PLAY to start!</div>
+        
+        <div class="instructions">
+            <p>Jump across platforms, avoid enemies, and reach the flag!</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const GRAVITY = 0.6;
+        const JUMP_STRENGTH = 12;
+        const MOVE_SPEED = 5;
+        
+        let currentLevel = 1;
+        let gameRunning = false;
+        
+        // Player
+        const player = {
+            x: 50,
+            y: 0,
+            width: 20,
+            height: 25,
+            vx: 0,
+            vy: 0,
+            jumping: false
+        };
+        
+        let platforms = [];
+        let enemies = [];
+        let flag = {};
+        
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            keys[e.key] = false;
+        });
+        
+        // Level definitions
+        const levels = [
+            { // Level 1 - Basic
+                platforms: [
+                    { x: 0, y: 480, w: 800, h: 20 }, // Ground
+                    { x: 150, y: 400, w: 150, h: 20 },
+                    { x: 400, y: 320, w: 150, h: 20 },
+                    { x: 650, y: 240, w: 120, h: 20 }
+                ],
+                enemies: [],
+                flag: { x: 720, y: 180 }
+            },
+            { // Level 2 - With enemies
+                platforms: [
+                    { x: 0, y: 480, w: 800, h: 20 },
+                    { x: 100, y: 380, w: 120, h: 20 },
+                    { x: 250, y: 300, w: 120, h: 20 },
+                    { x: 400, y: 380, w: 120, h: 20 },
+                    { x: 550, y: 280, w: 120, h: 20 },
+                    { x: 650, y: 360, w: 120, h: 20 }
+                ],
+                enemies: [
+                    { x: 200, y: 350, w: 20, h: 20, vx: 3 },
+                    { x: 600, y: 330, w: 20, h: 20, vx: -3 }
+                ],
+                flag: { x: 720, y: 300 }
+            },
+            { // Level 3 - Challenge
+                platforms: [
+                    { x: 0, y: 480, w: 800, h: 20 },
+                    { x: 80, y: 380, w: 100, h: 20 },
+                    { x: 200, y: 300, w: 80, h: 20 },
+                    { x: 320, y: 240, w: 80, h: 20 },
+                    { x: 440, y: 180, w: 80, h: 20 },
+                    { x: 560, y: 240, w: 80, h: 20 },
+                    { x: 680, y: 300, w: 100, h: 20 }
+                ],
+                enemies: [
+                    { x: 150, y: 350, w: 20, h: 20, vx: 4 },
+                    { x: 350, y: 210, w: 20, h: 20, vx: -3 },
+                    { x: 600, y: 270, w: 20, h: 20, vx: 3 }
+                ],
+                flag: { x: 750, y: 240 }
+            }
+        ];
+        
+        function loadLevel(levelNum) {
+            const level = levels[levelNum - 1];
+            platforms = [...level.platforms];
+            enemies = level.enemies.map(e => ({ ...e }));
+            flag = { ...level.flag };
+            
+            player.x = 50;
+            player.y = 0;
+            player.vx = 0;
+            player.vy = 0;
+            player.jumping = false;
+        }
+        
+        function updatePlayer() {
+            if (!gameRunning) return;
+            
+            // Movement
+            if (keys['a'] || keys['ArrowLeft']) {
+                player.vx = -MOVE_SPEED;
+            } else if (keys['d'] || keys['ArrowRight']) {
+                player.vx = MOVE_SPEED;
+            } else {
+                player.vx *= 0.9;
+            }
+            
+            // Jumping
+            if ((keys[' '] || keys['w'] || keys['ArrowUp']) && !player.jumping) {
+                player.vy = -JUMP_STRENGTH;
+                player.jumping = true;
+            }
+            
+            // Gravity
+            player.vy += GRAVITY;
+            
+            // Update position
+            player.x += player.vx;
+            player.y += player.vy;
+            
+            // Boundary check
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            
+            // Fall off
+            if (player.y > canvas.height) {
+                loadLevel(currentLevel);
+                updateStatus('Fell off! Try again.');
+                return;
+            }
+            
+            // Platform collision
+            for (let platform of platforms) {
+                if (player.vy > 0 && 
+                    player.y + player.height >= platform.y &&
+                    player.y + player.height <= platform.y + platform.h &&
+                    player.x + player.width > platform.x &&
+                    player.x < platform.x + platform.w) {
+                    player.vy = 0;
+                    player.jumping = false;
+                    player.y = platform.y - player.height;
+                }
+            }
+            
+            // Enemy collision
+            for (let enemy of enemies) {
+                if (player.x < enemy.x + enemy.w &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.h &&
+                    player.y + player.height > enemy.y) {
+                    loadLevel(currentLevel);
+                    updateStatus('Hit by enemy! Try again.');
+                    return;
+                }
+            }
+            
+            // Flag collision
+            if (player.x < flag.x + 30 &&
+                player.x + player.width > flag.x &&
+                player.y < flag.y + 40 &&
+                player.y + player.height > flag.y) {
+                if (currentLevel < 3) {
+                    currentLevel++;
+                    loadLevel(currentLevel);
+                    document.getElementById('level').textContent = currentLevel;
+                    updateStatus(`Level ${currentLevel}!`);
+                } else {
+                    gameRunning = false;
+                    updateStatus('🎉 All levels completed! You won!');
+                }
+            }
+        }
+        
+        function updateEnemies() {
+            for (let enemy of enemies) {
+                enemy.x += enemy.vx;
+                
+                // Bounce off walls
+                if (enemy.x < 0 || enemy.x + enemy.w > canvas.width) {
+                    enemy.vx *= -1;
+                }
+            }
+        }
+        
+        function draw() {
+            // Clear
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw platforms
+            ctx.fillStyle = '#8B4513';
+            for (let platform of platforms) {
+                ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(platform.x, platform.y, platform.w, platform.h);
+            }
+            
+            // Draw player
+            ctx.fillStyle = '#FF6B6B';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Draw eyes
+            ctx.fillStyle = '#000';
+            ctx.fillRect(player.x + 5, player.y + 5, 3, 3);
+            ctx.fillRect(player.x + 12, player.y + 5, 3, 3);
+            
+            // Draw enemies
+            ctx.fillStyle = '#333';
+            for (let enemy of enemies) {
+                ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
+                // Evil eyes
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(enemy.x + 3, enemy.y + 3, 3, 3);
+                ctx.fillRect(enemy.x + 10, enemy.y + 3, 3, 3);
+                ctx.fillStyle = '#333';
+            }
+            
+            // Draw flag
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(flag.x, flag.y, 25, 30);
+            ctx.fillStyle = '#FF4500';
+            ctx.beginPath();
+            ctx.moveTo(flag.x + 25, flag.y);
+            ctx.lineTo(flag.x + 25, flag.y + 15);
+            ctx.lineTo(flag.x + 35, flag.y + 8);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        function updateStatus(text) {
+            document.getElementById('gameStatus').textContent = text;
+        }
+        
+        function gameLoop() {
+            updatePlayer();
+            updateEnemies();
+            draw();
+        }
+        
+        document.getElementById('playBtn').addEventListener('click', () => {
+            currentLevel = 1;
+            loadLevel(currentLevel);
+            document.getElementById('level').textContent = '1';
+            gameRunning = true;
+            updateStatus('Level 1! Jump to the flag!');
+            document.getElementById('playBtn').textContent = 'Restart';
+        });
+        
+        setInterval(gameLoop, 1000 / 60);
+        draw();
+    </script>
+</body>
+</html>
